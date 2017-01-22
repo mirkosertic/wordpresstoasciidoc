@@ -11,9 +11,11 @@ import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.xpath.*;
 import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
+import java.io.PrintWriter;
 
-public class Importer {
+public class WordPressImport {
 
     private static Element getChildWithName(String aName, Element aElement) {
         NodeList theChilds = aElement.getElementsByTagName(aName);
@@ -42,7 +44,10 @@ public class Importer {
     public static void main(String[] aArgs) throws ParserConfigurationException, IOException, SAXException, XPathExpressionException {
         DocumentBuilderFactory theFactory = DocumentBuilderFactory.newInstance();
         DocumentBuilder theBulder = theFactory.newDocumentBuilder();
-        Document theDocument = theBulder.parse(new File("D:\\Mirko\\ownCloud\\mirkoserticde.wordpress.2017-01-22.xml"));
+
+        File theXMLFile = new File("D:\\Mirko\\ownCloud\\wordpress\\mirkoserticde.wordpress.2017-01-22.xml");
+
+        Document theDocument = theBulder.parse(theXMLFile);
 
         XPathFactory theXPathFactory = XPathFactory.newInstance();
         XPath theXPath = theXPathFactory.newXPath();
@@ -57,10 +62,24 @@ public class Importer {
                 String thePostingType = getCharacterDataFromElement(thePostType);
                 if ("post".endsWith(thePostingType)) {
                     String theContent = getCharacterDataFromElement(getChildWithName("content:encoded", theElement));
+                    String theTitle = getCharacterDataFromElement(getChildWithName("title", theElement));
+                    String thePostName = getCharacterDataFromElement(getChildWithName("wp:post_name", theElement));
 
                     System.out.println(theContent);
 
-                    k++;
+                    File theBaseDirectory = new File(theXMLFile.getParent(), "ascidoc");
+                    theBaseDirectory.mkdirs();
+                    File theFile = new File(theBaseDirectory, thePostName + ".adoc");
+
+                    try (PrintWriter theWriter = new PrintWriter(new FileWriter(theFile))) {
+
+                        theWriter.print("# " + theTitle);
+                        theWriter.println();
+                        theWriter.println();
+
+                        WordPressToAsciiDoctor theParser = new WordPressToAsciiDoctor(new PrintwriterOutput(theWriter));
+                        theParser.parse(theContent);
+                    }
                 }
             }
         }
