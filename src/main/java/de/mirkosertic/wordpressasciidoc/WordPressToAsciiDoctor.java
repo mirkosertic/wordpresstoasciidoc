@@ -82,6 +82,11 @@ public class WordPressToAsciiDoctor {
         protected void doFirstRun() {
             printer.print(" * ");
         }
+
+        @Override
+        public void popped() {
+            printer.println();
+        }
     }
 
     public class BoldToken extends DefaultToken {
