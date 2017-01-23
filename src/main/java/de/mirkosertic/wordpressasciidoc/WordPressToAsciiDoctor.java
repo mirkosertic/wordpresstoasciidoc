@@ -15,15 +15,20 @@ public class WordPressToAsciiDoctor {
     private class DefaultToken implements Token {
 
         private boolean removeTrailingWhiteSpaces;
+        private boolean isFirstRun;
 
         public DefaultToken() {
-            removeTrailingWhiteSpaces = true;
+            removeTrailingWhiteSpaces = true; isFirstRun = true;
         }
 
         @Override
         public void process(char theCurrentChar) {
             switch (theCurrentChar) {
                 case '<':
+                    if (isFirstRun) {
+                        isFirstRun = false;
+                        doFirstRun();
+                    }
                     tokenHandler.push(new HTMLToken());
                     break;
                 default:
@@ -37,7 +42,10 @@ public class WordPressToAsciiDoctor {
                                 break;
                             default:
                                 removeTrailingWhiteSpaces = false;
-                                doFirstRun();
+                                if (isFirstRun) {
+                                    isFirstRun = false;
+                                    doFirstRun();
+                                }
                                 printer.print(theCurrentChar);
                                 break;
                         }
@@ -156,18 +164,18 @@ public class WordPressToAsciiDoctor {
 
     private class UnorderedListToken extends DefaultToken {
 
-        public UnorderedListToken() {
+        @Override
+        protected void doFirstRun() {
             printer.println();
         }
 
         @Override
         public void popped() {
             printer.println();
-            printer.println();
         }
     }
 
-    public class PreformattedToken extends DefaultToken {
+    private class PreformattedToken extends DefaultToken {
 
         private final String clazz;
 
@@ -184,6 +192,12 @@ public class WordPressToAsciiDoctor {
                    printer.println();
                    printer.print("----");
                    printer.println();
+                } else {
+                    printer.println();
+                    printer.print("[source]");
+                    printer.println();
+                    printer.print("----");
+                    printer.println();
                 }
             }
         }
@@ -191,12 +205,51 @@ public class WordPressToAsciiDoctor {
         @Override
         public void popped() {
             if (clazz != null) {
-                if (clazz.contains("lang:java")) {
-                    printer.println();
-                    printer.print("----");
-                    printer.println();
-                }
+                printer.println();
+                printer.print("----");
+                printer.println();
             }
+        }
+    }
+
+    private class TableToken extends DefaultToken {
+
+        @Override
+        protected void doFirstRun() {
+           printer.println();
+           printer.print("|===");
+           printer.println();
+        }
+
+        @Override
+        public void popped() {
+            printer.print("|===");
+            printer.println();
+            printer.println();
+        }
+    }
+
+    private class TableRowToken extends DefaultToken {
+
+        @Override
+        public void popped() {
+            printer.println();
+        }
+    }
+
+    private class TableHeaderCellToken extends DefaultToken {
+
+        @Override
+        protected void doFirstRun() {
+            printer.print("| ");
+        }
+    }
+
+    private class TableBodyCellToken extends DefaultToken {
+
+        @Override
+        protected void doFirstRun() {
+            printer.print("| ");
         }
     }
 
@@ -220,10 +273,10 @@ public class WordPressToAsciiDoctor {
             currentAttributeValue = "";
         }
 
-        private boolean isClosingTagForMyself(Token aHandler) {
+        private boolean isOpeningTagForMyself(Token aHandler) {
             if (aHandler instanceof HTMLToken) {
                 HTMLToken theHTML = (HTMLToken) aHandler;
-                return tagName.equals(theHTML.tagName) && theHTML.closingTag;
+                return tagName.equals(theHTML.tagName) && !theHTML.closingTag;
             }
             return false;
         }
@@ -270,6 +323,18 @@ public class WordPressToAsciiDoctor {
                             case "pre":
                                 tokenHandler.push(new PreformattedToken(attributes.get("class")));
                                 break;
+                            case "table":
+                                tokenHandler.push(new TableToken());
+                                break;
+                            case "tr":
+                                tokenHandler.push(new TableRowToken());
+                                break;
+                            case "th":
+                                tokenHandler.push(new TableHeaderCellToken());
+                                break;
+                            case "td":
+                                tokenHandler.push(new TableBodyCellToken());
+                                break;
                             case "img":
                                 ImageToken theToken = new ImageToken(attributes.get("src"), attributes.get("width"), attributes.get("height"));
                                 theToken.doFirstRun();
@@ -284,14 +349,10 @@ public class WordPressToAsciiDoctor {
                                 break;
                         }
                     } else {
-                        while(!isClosingTagForMyself(tokenHandler.peek())) {
+                        while(!isOpeningTagForMyself(tokenHandler.peek())) {
                             tokenHandler.peek().popped();
                             tokenHandler.pop();
                         }
-                        tokenHandler.peek().popped();
-                        tokenHandler.pop();
-                        tokenHandler.peek().popped();
-                        tokenHandler.pop();
 
                         tokenHandler.push(new DefaultToken());
                     }
@@ -376,42 +437,3 @@ public class WordPressToAsciiDoctor {
         }
     }
 }
-
-/*
-
-
-<table class="inline">
-<thead>
-<tr class="row0">
-<th class="col0 rightalign font-secondary">Measurement</th>
-<th class="col1 rightalign font-secondary">GWT 2.8.0</th>
-<th class="col3 rightalign font-secondary">TeaVM 0.4.3</th>
-<th class="col3 rightalign font-secondary">TeaVM 1.0.0-SNAPSHOT</th>
-</tr>
-</thead>
-<tbody>
-<tr class="row1">
-<th class="col0 rightalign font-secondary">Compile time(OPTIMIZER ENABLED)</th>
-<td class="col1 rightalign">43.777 ms</td>
-<td class="col3 rightalign">10.383 ms</td>
-<td class="col3 rightalign">12.244 ms</td>
-</tr>
-<tr class="row2">
-<th class="col0 rightalign font-secondary">Size of JS in unoptimized mode</th>
-<td class="col1 rightalign">3.700 kb</td>
-<td class="col3 rightalign">2.890 kb</td>
-<td class="col3 rightalign">2.650 kb</td>
-</tr>
-<tr class="row3">
-<th class="col0 rightalign font-secondary">Size of JS in optimized mode</th>
-<td class="col1 rightalign">1.540 kb</td>
-<td class="col3 rightalign">955 kb</td>
-<td class="col3 rightalign">1013 kb</td>
-</tr>
-</tbody>
-</table>
-
-
- */
-
-

@@ -51,7 +51,7 @@ public class WordPressToAsciiDoctorTest {
         StringOutput theOutput = new StringOutput();
         WordPressToAsciiDoctor theWordPressToAsciiDoctor = new WordPressToAsciiDoctor(theOutput);
         theWordPressToAsciiDoctor.parse("<ul><li>This is a Test</li></ul>");
-        assertEquals("\n * This is a Test\n", theOutput.toString());
+        assertEquals("\n * This is a Test\n\n", theOutput.toString());
     }
 
     @Test
@@ -76,5 +76,17 @@ public class WordPressToAsciiDoctorTest {
         WordPressToAsciiDoctor theWordPressToAsciiDoctor = new WordPressToAsciiDoctor(theOutput);
         theWordPressToAsciiDoctor.parse("<img src=\"http://unknown\" width=\"100\" height=\"120\"/>Test");
         assertEquals("image:http://unknown[100,120]Test", theOutput.toString());
+    }
+
+    @Test
+    public void testTable() {
+        StringOutput theOutput = new StringOutput();
+        WordPressToAsciiDoctor theWordPressToAsciiDoctor = new WordPressToAsciiDoctor(theOutput);
+        theWordPressToAsciiDoctor.parse("<table>\n<thead>\n<tr>\n<th>Measurement</th>\n</tr>\n</thead>\n<tbody>\n<tr>\n<td>content</td>\n</tr>\n</tbody>\n</table>");
+        assertEquals("\n"
+                + "|===\n"
+                + "| Measurement\n"
+                + "| content\n"
+                + "|===\n\n", theOutput.toString());
     }
 }
