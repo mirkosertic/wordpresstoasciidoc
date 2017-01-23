@@ -1,19 +1,28 @@
 package de.mirkosertic.wordpressasciidoc;
 
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.TimeZone;
+
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.xpath.XPath;
+import javax.xml.xpath.XPathConstants;
+import javax.xml.xpath.XPathExpression;
+import javax.xml.xpath.XPathExpressionException;
+import javax.xml.xpath.XPathFactory;
+
 import org.w3c.dom.CharacterData;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
-
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.parsers.ParserConfigurationException;
-import javax.xml.xpath.*;
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.PrintWriter;
 
 public class WordPressImport {
 
@@ -41,11 +50,12 @@ public class WordPressImport {
         return "";
     }
 
-    public static void main(String[] aArgs) throws ParserConfigurationException, IOException, SAXException, XPathExpressionException {
+    public static void main(String[] aArgs)
+            throws ParserConfigurationException, IOException, SAXException, XPathExpressionException, ParseException {
         DocumentBuilderFactory theFactory = DocumentBuilderFactory.newInstance();
         DocumentBuilder theBulder = theFactory.newDocumentBuilder();
 
-        File theXMLFile = new File("D:\\Mirko\\ownCloud\\wordpress\\mirkoserticde.wordpress.2017-01-22.xml");
+        File theXMLFile = new File(System.getProperty("wordpressxmlfile"));
 
         Document theDocument = theBulder.parse(theXMLFile);
 
@@ -64,6 +74,8 @@ public class WordPressImport {
                     String theContent = getCharacterDataFromElement(getChildWithName("content:encoded", theElement));
                     String theTitle = getCharacterDataFromElement(getChildWithName("title", theElement));
                     String thePostName = getCharacterDataFromElement(getChildWithName("wp:post_name", theElement));
+                    String theGMTPostDate = getCharacterDataFromElement(getChildWithName("wp:post_date_gmt", theElement));
+                    String theStatus = getCharacterDataFromElement(getChildWithName("wp:status", theElement));
 
                     System.out.println(theContent);
 
@@ -73,17 +85,65 @@ public class WordPressImport {
 
                     try (PrintWriter theWriter = new PrintWriter(new FileWriter(theFile))) {
 
-                        theWriter.print("# " + theTitle);
-                        theWriter.println();
+                        theWriter.println("+++");
+
+                        SimpleDateFormat thePostFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+                        thePostFormat.setTimeZone(TimeZone.getTimeZone("GMT"));
+                        Date theDate = thePostFormat.parse(theGMTPostDate);
+
+                        SimpleDateFormat theOutputFormat = new SimpleDateFormat("yyyy-MM-dd'T'hh:mm:ssZ");
+
+                        StringBuilder theStringDate = new StringBuilder(theOutputFormat.format(theDate));
+                        theStringDate.insert(theStringDate.length() -2 , ":");
+
+                        theWriter.println("date = \"" + theStringDate+ "\"");
+                        theWriter.println("title = \"" + theTitle + "\"");
+
+                        theWriter.print("tags = [");
+
+                        NodeList theTags = theElement.getElementsByTagName("category");
+                        boolean hasTags = false;
+                        for (int j=0;j<theTags.getLength();j++) {
+                            Element theTagName = (Element) theTags.item(j);
+                            if ("post_tag".equals(theTagName.getAttribute("domain"))) {
+                                if (hasTags) {
+                                    theWriter.print(", ");
+                                }
+                                theWriter.print("\"");
+                                theWriter.print(getCharacterDataFromElement(theTagName));
+                                theWriter.print("\"");
+                                hasTags = true;
+                            }
+                        }
+
+                        theWriter.println("]");
+
+
+                        if (theStatus.contains("draft")) {
+                            theWriter.println("draft = true");
+                        } else {
+                            theWriter.println("draft = false");
+                        }
+
+
+                        theWriter.println("+++");
                         theWriter.println();
 
-                        WordPressToAsciiDoctor theParser = new WordPressToAsciiDoctor(new PrintwriterOutput(theWriter));
+                        StringOutput theOutput = new StringOutput();
+
+                        WordPressToAsciiDoctor theParser = new WordPressToAsciiDoctor(theOutput);
                         theParser.parse(theContent);
+
+                        // Unescape HTML entities
+                        String theResult = theOutput.toString();
+                        theResult = theResult.replace("&nbsp;", "");
+                        theResult = theResult.replace("&lt;", "<");
+                        theResult = theResult.replace("&gt;", ">");
+                        theResult = theResult.replace("\n\n\n", "\n\n");
+                        theWriter.print(theResult);
                     }
                 }
             }
         }
-
-        System.out.println(k);
     }
 }
